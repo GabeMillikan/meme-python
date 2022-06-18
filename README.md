@@ -4,12 +4,15 @@ Lets you easily generate text-based memes on images or gifs.
 ```py
 import meme
 
-meme.generate(
-    image="nerd.gif",
-    text="POV: you don't use meme-python",
-    output="output.gif",
+output = meme.generate(
+    image='static/nerd.jpg',
+    text='POV: You don\'t use meme-python'
 )
+
+output.show()
 ```
+![example](examples/output/meme.jpg)
+
 
 ## Setup
 1. Clone this repository (or download it as a .zip package)
