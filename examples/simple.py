@@ -2,8 +2,7 @@ import meme
 
 output = meme.generate(
     image='static/nerd.jpg',
-    text='test',
-    output='output/meme.jpg'
+    text='POV: You don\'t use meme-python'
 )
 
-print(output)
+output.show()

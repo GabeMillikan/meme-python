@@ -1,39 +1,38 @@
-# Pillow imports
 import PIL.Image, PIL.ImageDraw, PIL.ImageFont
-from PIL.Image import Image as PillowImage
-from PIL.ImageFont import FreeTypeFont as PillowImageFont
+from PIL.Image import Image
+from PIL.ImageFont import FreeTypeFont
 
-# other imports
-import textwrap
-import pathlib
+import re
+from pathlib import Path
 from dataclasses import dataclass, field
-from typing import Optional, Iterable
+from typing import Iterable, Optional
+from functools import cache
 
-# constants
-DEFAULT_FONT_PATH = pathlib.Path(__file__).parent / 'static' / 'impact.ttf'
-
-# common type aliases
+PotentialPath = Path | str
 Number = int | float
 
-# classes
+def get_path(path: PotentialPath) -> Path:
+    '''
+    converts a PotentialPath to a Path
+    '''
+    if isinstance(path, str):
+        return Path(path)
+    else:
+        return path
+
+def stringify_path(path: PotentialPath) -> str:
+    '''
+    returns the absolute path as a string
+    '''
+    return str(get_path(path).resolve().absolute())
+
 @dataclass
 class Point:
     x: Number
     y: Number
-
-@dataclass
-class Range:
-    min: Number
-    max: Number
     
-    def __init__(self, min: Number=None, max: Number=None):
-        if min > max:
-            min, max = max, min
-        
-        self.min, self.max = min, max
-    
-    def __in__(self, x: Number):
-        return self.min <= x <= self.max
+    def pixel(self):
+        return round(self.x), round(self.y)
 
 @dataclass
 class Rectangle:
@@ -68,7 +67,7 @@ class Rectangle:
         self.x, self.y, self.width, self.height = x, y, width, height
         self.x1, self.y1, self.x2, self.y2 = self.x, self.y, self.x + self.width, self.y + self.height
         
-        self.top, self.right, self.bottom, self.left = self.y1, self.x2, self.y2, self.x1
+        self.top, self.right, self.bottom, self.left = self.y2, self.x2, self.y1, self.x1
         self.top_left = self.tl = Point(self.left, self.top)
         self.top_right = self.tr = Point(self.right, self.top)
         self.bottom_right = self.br = Point(self.right, self.bottom)
@@ -81,16 +80,20 @@ class Rectangle:
         '''
         Builds the smallest Rectangle that contains all of the provided rectangles.
         '''
-        assert len(rectangles) > 0, 'You must provide at least one rectangle.'
         
         inf = float('inf')
         top, right, bottom, left = -inf, -inf, inf, inf
         
+        found_one = False
         for rectangle in rectangles:
+            found_one = True
             top = max(top, rectangle.top)
             right = max(right, rectangle.right)
             bottom = min(bottom, rectangle.bottom)
             left = min(left, rectangle.left)
+        
+        if not found_one:
+            raise ValueError('You must provide at least one rectangle.')
         
         return cls(
             x=left,
@@ -106,75 +109,103 @@ class FittedLine:
 
 @dataclass
 class FittedText:
-    font_size: int
+    font: FreeTypeFont
     lines: list[FittedLine]
     bounds: Rectangle
 
-# other type aliases
-PotentialPath = pathlib.Path | str
-PotentialImage = PillowImage | PotentialPath
-PotentialFont = PillowImageFont | PotentialPath
-FontSize = Number | Range
+def tokenize(text: str):
+    return re.findall(r'(?:[\w\']+|\A)(?:[^\w\']+|\Z)', text.strip())
 
-def get_path(path: PotentialPath) -> pathlib.Path:
-    '''
-    converts a PotentialPath to a pathlib.Path
-    '''
-    if isinstance(path, str):
-        return pathlib.Path(path)
-    else:
-        return path
+def pull_line_from_tokens(tokens, line_is_valid, last_character_count=0):
+    N = len(tokens)
+    
+    count = 0
+    line = ''
+    while count < N and len(line.strip()) < last_character_count:
+        line += tokens[count]
+        count += 1
+    
+    # increase count until line becomes invalid
+    while count < N and line_is_valid(line.strip()):
+        line += tokens[count]
+        count += 1
+    
+    # decrease count until line becomes valid
+    while not line_is_valid(line.strip()) and count > 1:
+        count -= 1
+        line = line[:-len(tokens[count])]
+    
+    return count, line.strip()
 
-def stringify_path(path: PotentialPath) -> str:
-    '''
-    returns the absolute path as a string
-    '''
-    return str(get_path(path).resolve().absolute())
+def fit_text(text: str=None, font: FreeTypeFont=None, bounds: Rectangle=None, line_spacing: float=0.3):
+    if bounds.height <= 0:
+        bounds = Rectangle(bounds.x, bounds.y, bounds.width, float('inf'))
+    
+    tokens = tokenize(text)
+    last_character_count = 0
+    
+    @cache
+    def line_size(line):
+        left, top, right, bottom = font.getbbox(line, anchor='lt')
+        return right - left, bottom - top
+    
+    def line_is_valid(line):
+        width, height = line_size(line)
+        return width <= bounds.width
+    
+    lines = []
+    y = bounds.bottom
+    while tokens and y + font.size <= bounds.top:
+        count, line = pull_line_from_tokens(tokens, line_is_valid, last_character_count)
+        last_character_count = len(line)
+        del tokens[:count]
+        
+        width, height = line_size(line)
+        lines.append(FittedLine(
+            line,
+            Rectangle(
+                bounds.left + (bounds.width - width) / 2,
+                y,
+                width,
+                height
+            )
+        ))
+        
+        y += font.size * (1 + line_spacing)
+    
+    return FittedText(
+        font=font,
+        lines=lines,
+        bounds=Rectangle.contain(line.bounds for line in lines)
+    )
 
-def get_image(image: PotentialImage) -> PillowImage:
-    '''
-    If `image` is already a Pillow image, returns it unchanged.
-    Otherwise, assumes that `image` represents a file path and
-    `Image.open()`s it.
-    '''
-    if isinstance(image, PillowImage):
-        return image
-    else:
-        return PIL.Image.open(stringify_path(image))
+def expand_image(image: Image=None, amount: int=None, color: tuple[int]=(255, 255, 255)) -> Image:
+    width, height = image.size
+    new_image = PIL.Image.new(image.mode, (width, height + amount), color)
+    new_image.paste(image, (0, amount))
+    return new_image
 
-def get_font(font: Optional[PotentialFont]=None) -> PillowImageFont:
-    '''
-    If `font` is already a Pillow image font, returns it unchanged.
-    If `font` is None, returns the default font (Impact)
-    Otherwise, assumes that `font` represents a file path and `ImageFont.truetype()`s it.
-    '''
-    if isinstance(font, PillowImageFont):
-        return font
-    else:
-        return PIL.ImageFont.truetype(stringify_path(font or DEFAULT_FONT_PATH))
+def draw_fitted_text(image: Image=None, text: FittedText=None) -> None:
+    drawer = PIL.ImageDraw.Draw(image)
+    for line in text.lines:
+        drawer.text(line.bounds.bottom_left.pixel(), line.text, (0,0,0), font=text.font, anchor='lt')
 
-def get_font_size(font_size: Optional[FontSize]) -> Range:
-    '''
-    Converts a FontSize to a range of potential font sizes.
-    If None, then the default range is used [8, 256]
-    '''
-    if isinstance(font_size, Range):
-        return font_size
-    elif isinstance(font_size, Number):
-        return Range(font_size, font_size)
-    else:
-        return Range(8, 256)
-
-def fit_text(
-    text: str=None, # What text should be fitted?
-    font: PillowImageFont=None, # What font will be used to render the text?
-    bounds: Rectangle=None, # the resultant fitted text will fit within this rectangle
-    horizontal_center: bool=True, # horizontally center each line?
-    vertical_center: bool=False, # vertically center the entire text block within the bounds?
-    font_size: Optional[FontSize]=None, # (optional) if provided, then the font_size will be constrained to this
-    line_height: float=0.5 # how much extra space should be added between each line, as a multiplier of the font size
-) -> FittedText:
-    '''
-    Determines the best FittedText attributes for text to fit within the provided `bounds`.
-    '''
-    raise NotImplementedError('TODO')
+__all__ = [
+    'PIL',
+    'Image',
+    'FreeTypeFont',
+    'Path',
+    'Iterable',
+    'Optional',
+    'PotentialPath',
+    'Number',
+    'get_path',
+    'stringify_path',
+    'Point',
+    'Rectangle',
+    'FittedLine',
+    'FittedText',
+    'fit_text',
+    'expand_image',
+    'draw_fitted_text',
+]
