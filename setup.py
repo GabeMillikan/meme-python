@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='meme-python',
-    version='1.0.2',
+    version='1.0.3',
     license='MIT',
     author='Gabe Millikan',
     url='https://github.com/GabeMillikan/meme-python',
