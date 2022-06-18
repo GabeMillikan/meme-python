@@ -114,7 +114,7 @@ class FittedText:
     bounds: Rectangle
 
 def tokenize(text: str):
-    return [tok for line in text.splitlines() for tok in re.findall(r'(?:[\w\']+|\A)(?:[^\w\']+|\Z)', line.strip() + '\n')]
+    return [tok for line in text.splitlines() for tok in re.findall(r'(?:\S+|\A)(?:\s+|\Z)', line.strip() + '\n')]
 
 def pull_line_from_tokens(tokens, line_is_valid, last_character_count=0):
     N = len(tokens)
@@ -134,9 +134,28 @@ def pull_line_from_tokens(tokens, line_is_valid, last_character_count=0):
             break
     
     # decrease count until line becomes valid
-    while count > 1 and not line_is_valid(line.strip()):
+    while count > 0 and not line_is_valid(line.strip()):
         count -= 1
         line = line[:-len(tokens[count])]
+    
+    if count == 0 and N > 0:
+        # binary search for how many characters should be added
+        token = tokens[0]
+        left = 1
+        right = len(token)
+        
+        while left + 1 < right:
+            mid = (left + right) // 2
+            line = token[:mid]
+            if line_is_valid(line.strip()):
+                left = mid
+            else:
+                right = mid
+        
+        tokens.insert(0, token[:left+1])
+        tokens[1] = token[left+1:]
+        return 1, token[:left+1].strip()
+    
     
     return count, line.strip()
 
