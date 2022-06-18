@@ -114,24 +114,24 @@ class FittedText:
     bounds: Rectangle
 
 def tokenize(text: str):
-    return re.findall(r'(?:[\w\']+|\A)(?:[^\w\']+|\Z)', text.strip())
+    return [tok for line in text.splitlines() for tok in re.findall(r'(?:[\w\']+|\A)(?:[^\w\']+|\Z)', line.strip() + '\n')]
 
 def pull_line_from_tokens(tokens, line_is_valid, last_character_count=0):
     N = len(tokens)
     
     count = 0
     line = ''
-    while count < N and len(line.strip()) < last_character_count:
+    while count < N and "\n" not in line and len(line.strip()) < last_character_count:
         line += tokens[count]
         count += 1
     
     # increase count until line becomes invalid
-    while count < N and line_is_valid(line.strip()):
+    while count < N and "\n" not in line and line_is_valid(line.strip()):
         line += tokens[count]
         count += 1
     
     # decrease count until line becomes valid
-    while not line_is_valid(line.strip()) and count > 1:
+    while count > 1 and "\n" not in line and not line_is_valid(line.strip()):
         count -= 1
         line = line[:-len(tokens[count])]
     
