@@ -1,13 +1,16 @@
 # Pillow imports
 import PIL.Image, PIL.ImageDraw, PIL.ImageFont
 from PIL.Image import Image as PillowImage
-from PIL.ImageFont import ImageFont as PillowImageFont
+from PIL.ImageFont import FreeTypeFont as PillowImageFont
 
 # other imports
 import textwrap
 import pathlib
 from dataclasses import dataclass, field
 from typing import Optional, Iterable
+
+# constants
+DEFAULT_FONT_PATH = pathlib.Path(__file__).parent / 'static' / 'impact.ttf'
 
 # common type aliases
 Number = int | float
@@ -111,7 +114,21 @@ class FittedText:
 PotentialPath = pathlib.Path | str
 PotentialImage = PillowImage | PotentialPath
 PotentialFont = PillowImageFont | PotentialPath
-MemeCaption = str | FittedText
+
+def get_path(path: PotentialPath) -> pathlib.Path:
+    '''
+    converts a PotentialPath to a pathlib.Path
+    '''
+    if isinstance(path, str):
+        return pathlib.Path(path)
+    else:
+        return path
+
+def stringify_path(path: PotentialPath) -> str:
+    '''
+    returns the absolute path as a string
+    '''
+    return str(get_path(path).resolve().absolute())
 
 def get_image(image: PotentialImage) -> PillowImage:
     '''
@@ -122,18 +139,18 @@ def get_image(image: PotentialImage) -> PillowImage:
     if isinstance(image, PillowImage):
         return image
     else:
-        return PIL.Image.open(image)
+        return PIL.Image.open(stringify_path(image))
 
-def get_font(font: PotentialFont) -> PillowImageFont:
+def get_font(font: Optional[PotentialFont]=None) -> PillowImageFont:
     '''
     If `font` is already a Pillow image font, returns it unchanged.
-    Otherwise, assumes that `font` represents a file path and
-    `ImageFont.open()`s it.
+    If `font` is None, returns the default font (Impact)
+    Otherwise, assumes that `font` represents a file path and `ImageFont.truetype()`s it.
     '''
     if isinstance(font, PillowImageFont):
         return font
     else:
-        return PIL.ImageFont.open(font)
+        return PIL.ImageFont.truetype(stringify_path(font or DEFAULT_FONT_PATH))
 
 def fit_text(
     text: str=None, # What text should be fitted?
