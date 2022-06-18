@@ -10,6 +10,8 @@ setup(
     install_requires=['Pillow'],
     python_requires='>=3',
     description='Meme Generator',
+    long_description='Meme Generator. See [repository on Github](https://github.com/GabeMillikan/meme-python).',
+    long_description_content_type='text/markdown',
     classifiers=[
         'Development Status :: 4 - Beta',
         'License :: OSI Approved :: MIT License',
