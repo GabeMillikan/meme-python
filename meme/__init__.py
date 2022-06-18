@@ -1,3 +1,1 @@
-from . import generate
-
-__all__ = []
+from .generate import generate
