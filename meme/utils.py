@@ -114,6 +114,7 @@ class FittedText:
 PotentialPath = pathlib.Path | str
 PotentialImage = PillowImage | PotentialPath
 PotentialFont = PillowImageFont | PotentialPath
+FontSize = Number | Range
 
 def get_path(path: PotentialPath) -> pathlib.Path:
     '''
@@ -152,13 +153,25 @@ def get_font(font: Optional[PotentialFont]=None) -> PillowImageFont:
     else:
         return PIL.ImageFont.truetype(stringify_path(font or DEFAULT_FONT_PATH))
 
+def get_font_size(font_size: Optional[FontSize]) -> Range:
+    '''
+    Converts a FontSize to a range of potential font sizes.
+    If None, then the default range is used [8, 256]
+    '''
+    if isinstance(font_size, Range):
+        return font_size
+    elif isinstance(font_size, Number):
+        return Range(font_size, font_size)
+    else:
+        return Range(8, 256)
+
 def fit_text(
     text: str=None, # What text should be fitted?
     font: PillowImageFont=None, # What font will be used to render the text?
     bounds: Rectangle=None, # the resultant fitted text will fit within this rectangle
     horizontal_center: bool=True, # horizontally center each line?
     vertical_center: bool=False, # vertically center the entire text block within the bounds?
-    font_size: Optional[float | Range]=None, # (optional) if provided, then the font_size will be constrained to this
+    font_size: Optional[FontSize]=None, # (optional) if provided, then the font_size will be constrained to this
     line_height: float=0.5 # how much extra space should be added between each line, as a multiplier of the font size
 ) -> FittedText:
     '''
