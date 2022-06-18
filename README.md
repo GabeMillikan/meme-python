@@ -5,13 +5,13 @@ Lets you easily generate text-based memes on images or gifs.
 import meme
 
 output = meme.generate(
-    image='static/nerd.jpg',
+    image='nerd.png',
     text='POV: You don\'t use meme-python'
 )
 
 output.show()
 ```
-![example](examples/output/meme.jpg)
+![example](examples/output/meme.png)
 
 
 ## Setup

@@ -121,17 +121,20 @@ def pull_line_from_tokens(tokens, line_is_valid, last_character_count=0):
     
     count = 0
     line = ''
-    while count < N and "\n" not in line and len(line.strip()) < last_character_count:
-        line += tokens[count]
-        count += 1
     
-    # increase count until line becomes invalid
-    while count < N and "\n" not in line and line_is_valid(line.strip()):
-        line += tokens[count]
+    # keep increasing count until it becomes invalid
+    while count < N and (len(line.strip()) < last_character_count or line_is_valid(line.strip())):
+        new_token = tokens[count]
+        line += new_token
         count += 1
+        
+        # newline will only ever be at the end of a token
+        # due to the way that `tokenize` is implemented
+        if new_token[-1] == "\n":
+            break
     
     # decrease count until line becomes valid
-    while count > 1 and "\n" not in line and not line_is_valid(line.strip()):
+    while count > 1 and not line_is_valid(line.strip()):
         count -= 1
         line = line[:-len(tokens[count])]
     
