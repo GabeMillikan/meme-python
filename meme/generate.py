@@ -40,6 +40,9 @@ def generate(
         text=fitted_text
     )
     
+    if output:
+        padded_image.save(stringify_path(output))
+    
     return padded_image
 
 __all__ = [
